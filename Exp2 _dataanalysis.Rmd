@@ -221,10 +221,39 @@ ET_means = subset.data.frame(ET_means, is.na(ET_means$SS) == FALSE)
 
 ```
 
-```{One/Paired Sample analysis}
+```{r One/Paired Sample analysis}
 
 source('tt.os.R')
 source('tt.ps.R')
 
-os_sor 
+ET_means_SOR = subset(ET_means, ET_means$TrialType == 'sor')
+ET_means_RR = subset(ET_means, ET_means$TrialType == 'rr')
+
+os_sor = tt.os(ET_means_SOR$D2, mu = 0, DV = 'D2 for SOR', N = 5)
+os_rr = tt.os(ET_means_RR$D2, mu = 0, DV = 'D2 for RR', N = 5)
+ps_or_rr = tt.ps(ET_means_SOR$D2, ET_means_RR$D2, N = 5, DV1 = 'D2 for SOR', DV2 = 'D2 for RR')
+
+```
+
+```{r plts}
+
+# data for plots
+plt = data.frame(matrix(nrow = 2, ncol = 3))
+names(plt) = c('TrialType','D2','SD')
+plt$TrialType = c('sor','rr')
+
+plt$D2[plt$TrialType=='sor'] = mean(ET_means_SOR$D2)
+plt$SD[plt$TrialType=='sor'] = sd(ET_means_SOR$D2)
+plt$D2[plt$TrialType=='rr'] = mean(ET_means_RR$D2)
+plt$SD[plt$TrialType=='rr'] = sd(ET_means_RR$D2)
+
+library(ggplot2)
+library(jtools)
+
+plt_et_main = ggplot(data = plt, aes(x = TrialType, y = D2)) + 
+  geom_point(aes(x = TrialType, y = D2), size = 3, position=position_dodge(0.05)) +
+  geom_errorbar(aes(ymin=D2-SD, ymax=D2+SD), width=.1, position=position_dodge(0.05), inherit.aes = TRUE) +
+  theme_apa() + xlab('Condition') + ylab('Mean D2') + theme(text = element_text(size=12), axis.text = element_text(size = 12))
+ggsave('Exp02_ET_Main.png', plot = last_plot(), scale = 1, dpi = 300)
+
 ```
