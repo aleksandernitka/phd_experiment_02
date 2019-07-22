@@ -1,0 +1,230 @@
+---
+title: "Exp2_dataanalysis"
+author: "AWN"
+date: "22/07/2019"
+output: html_document
+---
+
+```{r laod data}
+
+files = list.files(path = "./", pattern = "\\.xlsx$")
+subjects = c()
+
+library(xlsx)
+TIME <- Sys.time();
+pb   <- txtProgressBar(1, length(files), style=3)
+for (file in 1:length(files)) {
+    Sys.sleep(0.00002)
+    setTxtProgressBar(pb, file)
+    a = read.xlsx(files[file], 1)
+    nam = paste("subject",file , sep = "_")
+    assign(nam, a)
+    #message(paste("Loaded data for: ", nam, sep = ""))
+    subjects = append(subjects, nam)
+}
+Sys.time() - TIME
+remove(a, nam, file, files, TIME, pb)
+
+
+```
+
+```{r clean data}
+# Writing the location of the target (x,y) caused the comma between the x and y cause this value to be interpreted as two, resulting in a split between the x and y into two separate columns. This has caused following cells to be shifted to the right by 2 columns. This has been fixed by re-builind the x,y location values and shifting the names of the columns accordingly.
+
+subject_info = data.frame(NA)
+
+for (s in 1:length(subjects)) {
+    x = subjects[s]
+    tmp = eval(parse(text = x))
+    
+    # Extract the sample data
+    for (l in 1:nrow(tmp)) {
+        if (tmp[l,1] == 'participant'){
+            subject_info[s,1] = as.character(tmp[l,2])
+            subject_info[s,2] = as.character(tmp[l+2,2])
+            subject_info[s,3] = as.numeric(as.character(tmp[l+3,2]))
+            subject_info[s,4] = as.numeric(as.character(tmp[l+4,2]))
+            subject_info[s,5] = as.character(tmp[l+6,2])
+        }
+    }
+    
+    
+    # Only keep lines that are with trials data
+    tmp = subset.data.frame(tmp, is.na(tmp$a) == FALSE) 
+    
+    # Some columns are not required, these are to be removed:
+    # colrm = c('img2r', 	'img3r', 'response_2', 'response_3', 'response_1', 'a', 'b', 'isi3', 
+    #           'exp3', 'img1r', 'isi', 'img1l', 'exp', 'img3l', 'img2l', 'S1LeftFx_mean', 
+    #           'S1LeftFx_std', 'S1RightFx_mean', 'S1RightFx_std', 'S2LeftFx_mean', 'S2LeftFx_std', 
+    #           'S2RightFx_mean', 'S2RightFx_std', 'S3LeftFx_mean', 'S3LeftFx_std', 'S3RightFx_mean', 
+    #           'S3RightFx_std', 'heldFixation1_mean', 'heldFixation2_mean', 'heldFixation3_mean', 
+    #           's1_key_resp.corr_mean', 's1_key_resp.corr_std', 's1_key_resp.rt_mean', 
+    #           's1_key_resp.rt_std', 's2_gauss_jitter_mean', 's2_gauss_jitter_std', 
+    #           's2_key_resp.corr_mean', 's2_key_resp.corr_std', 's2_key_resp.rt_mean', 
+    #           's2_key_resp.rt_std', 's2_tar_onset_mean', 's2_tar_onset_std',  
+    #           's3_key_resp.corr_mean', 's3_key_resp.corr_std', 's3_key_resp.rt_mean', 
+    #           's3_key_resp.rt_std', 's3_tar_onset_mean', 's3_tar_onset_std');
+    
+    colkeep = c('wheretarget', 'trial_type2','trial_type1','S1_LeftFx_raw','S1_RightFx_raw',
+                'S2_LeftFx_raw','S2_RightFx_raw','S3_LeftFx_raw','S3_RightFx_raw','order')
+    
+    tmp = tmp[ , (names(tmp) %in% colkeep)]
+    tmp = subset.data.frame(tmp, is.na(tmp$trial_type1) == FALSE)
+    
+    
+    
+    # Save the data frame
+    assign(subjects[s], tmp)
+}
+names(subject_info) = c("subject", "gender", "age", "framerate", "date")
+remove(colkeep,l,s,x,tmp)
+
+```
+
+```{r save}
+#save.image(file = "allSubjects_cleaned.RData")
+load(file = 'allSubjects_cleaned.RData')
+```
+
+```{r eye tracking analysis recode L/R to A/B}
+# Recode/create another variable which takes the dwell measures from Left/Right to A/B
+# Sum up all the dwell time numbers for S1 and S2(RR only)
+
+for (s in 1:length(subjects)) {
+    
+    tmp = eval(parse(text = subjects[s]))
+    
+    tmp$test_fix_A = NA
+    tmp$test_fix_B = NA
+    
+    for (line in 1:nrow(tmp)) {
+        
+        if (tmp$trial_type1[line] == 'sor'){
+            
+            # For SOR the Test is S2
+            if (tmp$trial_type2[line] == 'ab'){
+                
+                tmp$test_fix_A[line] = tmp$S2_LeftFx_raw[line]
+                tmp$test_fix_B[line] = tmp$S2_RightFx_raw[line]
+            }
+            if (tmp$trial_type2[line] == 'ba'){
+                
+                tmp$test_fix_B[line] = tmp$S2_LeftFx_raw[line]
+                tmp$test_fix_A[line] = tmp$S2_RightFx_raw[line]
+            }
+        }
+        
+        # For RR the Test is S3 
+        if (tmp$trial_type1[line] == 'rr'){
+            if (tmp$trial_type2[line] == 'ab'){
+                
+                tmp$test_fix_A[line] = tmp$S3_LeftFx_raw[line]
+                tmp$test_fix_B[line] = tmp$S3_RightFx_raw[line]
+            }
+            if (tmp$trial_type2[line] == 'ba'){
+                
+                tmp$test_fix_B[line] = tmp$S3_LeftFx_raw[line]
+                tmp$test_fix_A[line] = tmp$S3_RightFx_raw[line]
+            }
+        }
+        assign(subjects[s], tmp)
+        
+    }
+}
+remove(line, s, tmp)
+
+```
+
+```{r sample data}
+print(paste('N =', nrow(subject_info)))
+table(subject_info$gender)
+mean(subject_info$age)
+sd(subject_info$age)
+```
+
+```{r et analysis rejection of trials}
+# Get the Means for Subjects and check how much data was lost
+RejectedTrials = data.frame(matrix(nrow = length(subjects), ncol = 3))
+names(RejectedTrials) = c('ss','sorLost','rrLost')
+
+for (s in 1:length(subjects)) {
+    
+    tmp = eval(parse(text = subjects[s]))
+    
+    # calculate D2 for each trial
+    tmp$D2 = NA
+    
+    for (l in 1:nrow(tmp)){
+        if (tmp$trial_type1[l] == 'sor'){
+            tmp$D2[l] = (tmp$test_fix_B[l] - tmp$test_fix_A[l]) / (tmp$test_fix_A[l] + tmp$test_fix_B[l])
+        } else {
+            tmp$D2[l] = (tmp$test_fix_A[l] - tmp$test_fix_B[l]) / (tmp$test_fix_A[l] + tmp$test_fix_B[l])
+        }
+    }
+    
+    # check lost trials
+    RejectedTrials$ss[s] = subjects[s]
+    RejectedTrials$sorLost[s] = nrow(subset(tmp, is.na(tmp$D2) == TRUE & tmp$trial_type1 == 'sor')) / nrow(subset(tmp, tmp$trial_type1 == 'sor'))
+    RejectedTrials$rrLost[s] = nrow(subset(tmp, is.na(tmp$D2) == TRUE & tmp$trial_type1 == 'rr')) / nrow(subset(tmp, tmp$trial_type1 == 'rr'))
+    
+    # save df
+    assign(subjects[s], tmp)
+    
+}
+```
+
+```{r remove ss}
+#SS 06 lost 0.5859375 of RR trials --> rejected
+
+subjects = subjects[1:5]
+```
+
+```{r get et means}
+
+# Create a main DF to whic each subjects' data will be appended - this one has only one value for fixation and it's calcualted as a difference btw A and B (B - A)
+ET_means = data.frame(matrix(ncol = 3))
+names(ET_means) = c("SS","D2", "TrialType")
+
+for (s in 1:length(subjects)) {
+    
+    tmp = eval(parse(text = subjects[s]))
+    
+    # Make a new data frame to collect the means for each ss (tmp_et and diff_et) and then append this to the 'main' DFs
+    tmp_et = data.frame(matrix(NA, nrow = 2, ncol = 3))
+    
+    names(tmp_et) = c("SS","D2","TrialType")
+    
+    # SS - subject id
+    # FIX - number of frames
+    # FixType - this
+    # TrialType - sor/rr
+    # DFIX - Difference between A and B (B - A)
+    
+    tmp_et$SS = subjects[s]
+    tmp_et$TrialType = c('sor','rr')
+    
+    tmp_et$D2[tmp_et$TrialType == 'sor'] = mean(subset(tmp$D2, tmp$trial_type1 == 'sor'), na.rm = 1)
+    tmp_et$D2[tmp_et$TrialType == 'rr'] = mean(subset(tmp$D2, tmp$trial_type1 == 'rr'), na.rm = 1)
+    
+    # Update the 'main' DF for RT
+    ET_means = rbind.data.frame(ET_means, tmp_et)
+    
+    # save df
+    assign(subjects[s], tmp)
+    
+}
+
+
+remove(s, tmp, tmp_et, diff_et)
+ET_means = subset.data.frame(ET_means, is.na(ET_means$SS) == FALSE)
+
+
+```
+
+```{One/Paired Sample analysis}
+
+source('tt.os.R')
+source('tt.ps.R')
+
+os_sor 
+```
